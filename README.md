@@ -28,7 +28,7 @@ A simple task manager built with **Next.js 15**, **TypeScript**, and **Tailwind 
 1. **Clone the repo**
 
 ```bash
-git clone https://github.com/TanvirSEF/Smart-Task-Manager-with-AI-Assistance.git
+git clone https://github.com/TanvirSEF/smart-task-manager.git
 cd smart-task-manager
 
 Install dependencies
