@@ -79,13 +79,10 @@ export async function createTask(data: {
     subtasks: [],
   };
 
-  const result = await db.collection("tasks").insertOne(doc);
+  await db.collection("tasks").insertOne(doc);
   revalidatePath("/");
 
-  return {
-    ...doc,
-    id: result.insertedId.toString(),
-  };
+  return mapTask(doc);
 }
 
 export async function updateTask(
