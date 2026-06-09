@@ -1,5 +1,9 @@
 # nixpacks.toml for Next.js deployment on Dokploy
 
+[variables]
+NODE_VERSION = "20"
+NIXPACKS_NODE_VERSION = "20"
+
 [phases.install]
 dependsOn = ["setup"]
 cmds = ["pnpm install --no-frozen-lockfile"]
