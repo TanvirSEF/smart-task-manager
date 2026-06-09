@@ -151,8 +151,21 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: aiPrompt }),
       });
+
+      if (!res.ok) {
+        let errorMsg = "Failed to parse task via AI.";
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch {
+          errorMsg = `Server error (${res.status}): Please check OpenAI API Key in Vercel settings.`;
+        }
+        setAiError(errorMsg);
+        return;
+      }
+
       const data = await res.json();
-      if (res.ok && data.task) {
+      if (data.task) {
         const newTask = await createTask({
           title: data.task.title,
           description: data.task.description,
@@ -170,10 +183,10 @@ export default function Dashboard() {
         setAiPrompt("");
         refreshTasks();
       } else {
-        setAiError(data.error || "Failed to parse task via AI.");
+        setAiError("No task data returned from AI.");
       }
-    } catch (err) {
-      setAiError("Network error. Please try again.");
+    } catch (err: any) {
+      setAiError(`Network error: ${err?.message || "Please try again."}`);
     } finally {
       setAiLoading(false);
     }
@@ -236,16 +249,29 @@ export default function Dashboard() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: task.title, description: task.description || "" }),
       });
+
+      if (!res.ok) {
+        let errorMsg = "Failed to suggest subtasks.";
+        try {
+          const data = await res.json();
+          errorMsg = data.error || errorMsg;
+        } catch {
+          errorMsg = `Server error (${res.status}).`;
+        }
+        alert(errorMsg);
+        return;
+      }
+
       const data = await res.json();
-      if (res.ok && data.subtasks) {
+      if (data.subtasks) {
         // Create all suggested subtasks in the database
         for (const subtaskTitle of data.subtasks) {
           await createSubtask(task.id, subtaskTitle);
         }
         refreshTasks();
       }
-    } catch (err) {
-      alert("Error generating subtasks.");
+    } catch (err: any) {
+      alert(`Error generating subtasks: ${err?.message || "Please check network."}`);
     } finally {
       setSuggestingTaskId(null);
     }
