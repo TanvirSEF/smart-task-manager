@@ -191,13 +191,13 @@ export async function getAiInsights() {
     };
   }
 
-  const tasksSummary = tasks.map(t => ({
+  const tasksSummary = tasks.map((t: any) => ({
     title: t.title,
     status: t.status,
     priority: t.priority,
     category: t.category,
     subtasksCount: t.subtasks.length,
-    completedSubtasksCount: t.subtasks.filter(s => s.completed).length,
+    completedSubtasksCount: t.subtasks.filter((s: any) => s.completed).length,
   }));
 
   const prompt = `Here is a list of my current tasks in my task manager:
