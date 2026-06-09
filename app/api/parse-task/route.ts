@@ -32,6 +32,7 @@ Given a user sentence, extract the task properties:
 - dueDate: string (Optional, date in YYYY-MM-DD format. Calculate relative dates using today's date: ${today})
 - priority: string ("High", "Medium", "Low" - default to "Medium" if not specified)
 - category: string ("Work", "Personal", "Health", "Shopping" - choose best fit, default to "Personal")
+- subtasks: array of strings (Optional, suggest 3 to 5 small, actionable, specific subtasks for this task)
 
 Respond ONLY with a valid JSON object matching this schema.`,
           },

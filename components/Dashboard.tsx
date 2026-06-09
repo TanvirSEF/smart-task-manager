@@ -153,13 +153,20 @@ export default function Dashboard() {
       });
       const data = await res.json();
       if (res.ok && data.task) {
-        await createTask({
+        const newTask = await createTask({
           title: data.task.title,
           description: data.task.description,
           dueDate: data.task.dueDate,
           priority: data.task.priority,
           category: data.task.category,
         });
+
+        if (newTask && data.task.subtasks && Array.isArray(data.task.subtasks)) {
+          for (const subtaskTitle of data.task.subtasks) {
+            await createSubtask(newTask.id, subtaskTitle);
+          }
+        }
+
         setAiPrompt("");
         refreshTasks();
       } else {
