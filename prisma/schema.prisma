@@ -1,0 +1,33 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "mongodb"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Task {
+  id          String    @id @default(auto()) @map("_id") @db.ObjectId
+  userId      String    // Clerk User ID
+  title       String
+  description String?
+  dueDate     String?
+  priority    String    @default("Medium") // Low, Medium, High
+  status      String    @default("TODO")   // TODO, IN_PROGRESS, COMPLETED
+  category    String    @default("Personal") // Work, Personal, etc.
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  subtasks    Subtask[]
+}
+
+model Subtask {
+  id        String   @id @default(auto()) @map("_id") @db.ObjectId
+  title     String
+  completed Boolean  @default(false)
+  taskId    String   @db.ObjectId
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+}
