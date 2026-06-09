@@ -2,29 +2,30 @@ import { MongoClient, Db } from "mongodb";
 
 const uri = process.env.DATABASE_URL;
 
-if (!uri) {
-  throw new Error("Please add your DATABASE_URL to .env");
-}
+let client: MongoClient | null = null;
+let clientPromise: Promise<MongoClient> | null = null;
 
-let client: MongoClient;
-let clientPromise: Promise<MongoClient>;
+if (uri) {
+  if (process.env.NODE_ENV === "development") {
+    const globalWithMongo = global as typeof globalThis & {
+      _mongoClientPromise?: Promise<MongoClient>;
+    };
 
-if (process.env.NODE_ENV === "development") {
-  const globalWithMongo = global as typeof globalThis & {
-    _mongoClientPromise?: Promise<MongoClient>;
-  };
-
-  if (!globalWithMongo._mongoClientPromise) {
+    if (!globalWithMongo._mongoClientPromise) {
+      client = new MongoClient(uri);
+      globalWithMongo._mongoClientPromise = client.connect();
+    }
+    clientPromise = globalWithMongo._mongoClientPromise;
+  } else {
     client = new MongoClient(uri);
-    globalWithMongo._mongoClientPromise = client.connect();
+    clientPromise = client.connect();
   }
-  clientPromise = globalWithMongo._mongoClientPromise;
-} else {
-  client = new MongoClient(uri);
-  clientPromise = client.connect();
 }
 
 export async function connectToDatabase(): Promise<{ client: MongoClient; db: Db }> {
+  if (!uri || !clientPromise) {
+    throw new Error("Missing DATABASE_URL environment variable. Please configure it in your Vercel project settings.");
+  }
   const conn = await clientPromise;
   const db = conn.db();
   return { client: conn, db };

@@ -39,21 +39,28 @@ function mapTask(task: any) {
 }
 
 export async function getTasks(filters?: { status?: string; priority?: string; category?: string }) {
-  const userId = await getUserId();
-  const { db } = await connectToDatabase();
+  try {
+    const userId = await getUserId();
+    const { db } = await connectToDatabase();
 
-  const query: any = { userId };
-  if (filters?.status) query.status = filters.status;
-  if (filters?.priority) query.priority = filters.priority;
-  if (filters?.category) query.category = filters.category;
+    const query: any = { userId };
+    if (filters?.status) query.status = filters.status;
+    if (filters?.priority) query.priority = filters.priority;
+    if (filters?.category) query.category = filters.category;
 
-  const tasks = await db
-    .collection("tasks")
-    .find(query)
-    .sort({ createdAt: -1 })
-    .toArray();
+    const tasks = await db
+      .collection("tasks")
+      .find(query)
+      .sort({ createdAt: -1 })
+      .toArray();
 
-  return tasks.map(mapTask);
+    return tasks.map(mapTask);
+  } catch (err: any) {
+    console.error("=== SERVER ACTION ERROR: getTasks ===");
+    console.error(err);
+    console.error("=====================================");
+    throw err;
+  }
 }
 
 export async function createTask(data: {
@@ -63,26 +70,33 @@ export async function createTask(data: {
   priority?: string;
   category?: string;
 }) {
-  const userId = await getUserId();
-  const { db } = await connectToDatabase();
+  try {
+    const userId = await getUserId();
+    const { db } = await connectToDatabase();
 
-  const doc = {
-    userId,
-    title: data.title,
-    description: data.description || null,
-    dueDate: data.dueDate || null,
-    priority: data.priority || "Medium",
-    category: data.category || "Personal",
-    status: "TODO",
-    createdAt: new Date(),
-    updatedAt: new Date(),
-    subtasks: [],
-  };
+    const doc = {
+      userId,
+      title: data.title,
+      description: data.description || null,
+      dueDate: data.dueDate || null,
+      priority: data.priority || "Medium",
+      category: data.category || "Personal",
+      status: "TODO",
+      createdAt: new Date(),
+      updatedAt: new Date(),
+      subtasks: [],
+    };
 
-  await db.collection("tasks").insertOne(doc);
-  revalidatePath("/");
+    await db.collection("tasks").insertOne(doc);
+    revalidatePath("/");
 
-  return mapTask(doc);
+    return mapTask(doc);
+  } catch (err: any) {
+    console.error("=== SERVER ACTION ERROR: createTask ===");
+    console.error(err);
+    console.error("=======================================");
+    throw err;
+  }
 }
 
 export async function updateTask(
