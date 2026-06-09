@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, startTransition } from "react";
-import { UserButton, useUser } from "@clerk/nextjs";
+import { UserButton, useUser, useClerk } from "@clerk/nextjs";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Plus,
@@ -22,6 +22,7 @@ import {
   MessageSquare,
   Activity,
   User,
+  LogOut,
 } from "lucide-react";
 import {
   getTasks,
@@ -56,6 +57,7 @@ interface Task {
 
 export default function Dashboard() {
   const { user } = useUser();
+  const { signOut } = useClerk();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("ALL");
@@ -322,6 +324,14 @@ export default function Dashboard() {
               <span className="text-[10px] text-slate-500 capitalize">Personal Account</span>
             </div>
           </div>
+          
+          <button
+            onClick={() => signOut({ redirectUrl: "/sign-in" })}
+            className="p-2 bg-slate-800/60 hover:bg-rose-950/20 text-slate-400 hover:text-rose-400 border border-slate-800/80 hover:border-rose-950/30 rounded-xl transition-all cursor-pointer"
+            title="Log Out"
+          >
+            <LogOut className="h-4 w-4" />
+          </button>
         </div>
       </aside>
 
