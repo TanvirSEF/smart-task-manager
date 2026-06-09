@@ -1,6 +1,7 @@
 "use server";
 
-import { prisma } from "@/lib/prisma";
+import { connectToDatabase } from "@/lib/mongodb";
+import { ObjectId } from "mongodb";
 import { auth } from "@clerk/nextjs/server";
 import { revalidatePath } from "next/cache";
 
@@ -13,27 +14,46 @@ async function getUserId() {
   return userId;
 }
 
+// Map MongoDB Task document to application interface
+function mapTask(task: any) {
+  return {
+    id: task._id.toString(),
+    userId: task.userId,
+    title: task.title,
+    description: task.description || null,
+    dueDate: task.dueDate || null,
+    priority: task.priority,
+    status: task.status,
+    category: task.category,
+    createdAt: task.createdAt,
+    updatedAt: task.updatedAt,
+    subtasks: (task.subtasks || [])
+      .sort((a: any, b: any) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
+      .map((s: any) => ({
+        id: s.id,
+        title: s.title,
+        completed: s.completed,
+        taskId: task._id.toString(),
+      })),
+  };
+}
+
 export async function getTasks(filters?: { status?: string; priority?: string; category?: string }) {
   const userId = await getUserId();
-  
-  const where: any = { userId };
-  if (filters?.status) where.status = filters.status;
-  if (filters?.priority) where.priority = filters.priority;
-  if (filters?.category) where.category = filters.category;
+  const { db } = await connectToDatabase();
 
-  return prisma.task.findMany({
-    where,
-    include: {
-      subtasks: {
-        orderBy: {
-          createdAt: "asc",
-        },
-      },
-    },
-    orderBy: {
-      createdAt: "desc",
-    },
-  });
+  const query: any = { userId };
+  if (filters?.status) query.status = filters.status;
+  if (filters?.priority) query.priority = filters.priority;
+  if (filters?.category) query.category = filters.category;
+
+  const tasks = await db
+    .collection("tasks")
+    .find(query)
+    .sort({ createdAt: -1 })
+    .toArray();
+
+  return tasks.map(mapTask);
 }
 
 export async function createTask(data: {
@@ -44,21 +64,28 @@ export async function createTask(data: {
   category?: string;
 }) {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
 
-  const task = await prisma.task.create({
-    data: {
-      userId,
-      title: data.title,
-      description: data.description,
-      dueDate: data.dueDate,
-      priority: data.priority || "Medium",
-      category: data.category || "Personal",
-      status: "TODO",
-    },
-  });
+  const doc = {
+    userId,
+    title: data.title,
+    description: data.description || null,
+    dueDate: data.dueDate || null,
+    priority: data.priority || "Medium",
+    category: data.category || "Personal",
+    status: "TODO",
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    subtasks: [],
+  };
 
+  const result = await db.collection("tasks").insertOne(doc);
   revalidatePath("/");
-  return task;
+
+  return {
+    ...doc,
+    id: result.insertedId.toString(),
+  };
 }
 
 export async function updateTask(
@@ -73,104 +100,160 @@ export async function updateTask(
   }
 ) {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
+
+  let objectId: ObjectId;
+  try {
+    objectId = new ObjectId(id);
+  } catch {
+    throw new Error("Invalid task ID");
+  }
 
   // Ensure user owns the task
-  const existing = await prisma.task.findFirst({
-    where: { id, userId },
-  });
-
+  const existing = await db.collection("tasks").findOne({ _id: objectId, userId });
   if (!existing) {
     throw new Error("Task not found or unauthorized");
   }
 
-  const updated = await prisma.task.update({
-    where: { id },
-    data,
-  });
+  const updateFields: any = {
+    ...data,
+    updatedAt: new Date(),
+  };
 
+  await db.collection("tasks").updateOne({ _id: objectId }, { $set: updateFields });
+
+  const updatedDoc = await db.collection("tasks").findOne({ _id: objectId });
   revalidatePath("/");
-  return updated;
+  return updatedDoc ? mapTask(updatedDoc) : null;
 }
 
 export async function deleteTask(id: string) {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
+
+  let objectId: ObjectId;
+  try {
+    objectId = new ObjectId(id);
+  } catch {
+    throw new Error("Invalid task ID");
+  }
 
   // Ensure user owns the task
-  const existing = await prisma.task.findFirst({
-    where: { id, userId },
-  });
-
+  const existing = await db.collection("tasks").findOne({ _id: objectId, userId });
   if (!existing) {
     throw new Error("Task not found or unauthorized");
   }
 
-  await prisma.task.delete({
-    where: { id },
-  });
-
+  await db.collection("tasks").deleteOne({ _id: objectId });
   revalidatePath("/");
   return { success: true };
 }
 
 export async function toggleSubtask(id: string, completed: boolean) {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
 
-  const subtask = await prisma.subtask.findUnique({
-    where: { id },
-    include: { task: true },
+  // Find the task containing the subtask with ID `id` and owned by `userId`
+  const task = await db.collection("tasks").findOne({
+    "subtasks.id": id,
+    userId,
   });
 
-  if (!subtask || subtask.task.userId !== userId) {
+  if (!task) {
     throw new Error("Unauthorized or Subtask not found");
   }
 
-  const updated = await prisma.subtask.update({
-    where: { id },
-    data: { completed },
-  });
+  // Update the subtask completeness status
+  await db.collection("tasks").updateOne(
+    { _id: task._id, "subtasks.id": id },
+    {
+      $set: {
+        "subtasks.$.completed": completed,
+        updatedAt: new Date(),
+      },
+    }
+  );
 
   revalidatePath("/");
-  return updated;
+
+  // Find the subtask to return it
+  const updatedTask = await db.collection("tasks").findOne({ _id: task._id });
+  const subtask = updatedTask?.subtasks?.find((s: any) => s.id === id);
+
+  if (!subtask) {
+    throw new Error("Subtask not found after update");
+  }
+
+  return {
+    id: subtask.id,
+    title: subtask.title,
+    completed: subtask.completed,
+    taskId: task._id.toString(),
+  };
 }
 
 export async function createSubtask(taskId: string, title: string) {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
 
-  const task = await prisma.task.findFirst({
-    where: { id: taskId, userId },
-  });
+  let objectId: ObjectId;
+  try {
+    objectId = new ObjectId(taskId);
+  } catch {
+    throw new Error("Invalid task ID");
+  }
 
+  const task = await db.collection("tasks").findOne({ _id: objectId, userId });
   if (!task) {
     throw new Error("Unauthorized or Task not found");
   }
 
-  const subtask = await prisma.subtask.create({
-    data: {
-      taskId,
-      title,
-      completed: false,
-    },
-  });
+  const subtaskId = new ObjectId().toString();
+  const subtask = {
+    id: subtaskId,
+    title,
+    completed: false,
+    createdAt: new Date(),
+  };
+
+  await db.collection("tasks").updateOne(
+    { _id: objectId },
+    {
+      $push: { subtasks: subtask } as any,
+      $set: { updatedAt: new Date() },
+    }
+  );
 
   revalidatePath("/");
-  return subtask;
+
+  return {
+    id: subtask.id,
+    title: subtask.title,
+    completed: subtask.completed,
+    taskId: taskId,
+  };
 }
 
 export async function deleteSubtask(id: string) {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
 
-  const subtask = await prisma.subtask.findUnique({
-    where: { id },
-    include: { task: true },
+  const task = await db.collection("tasks").findOne({
+    "subtasks.id": id,
+    userId,
   });
 
-  if (!subtask || subtask.task.userId !== userId) {
+  if (!task) {
     throw new Error("Unauthorized or Subtask not found");
   }
 
-  await prisma.subtask.delete({
-    where: { id },
-  });
+  await db.collection("tasks").updateOne(
+    { _id: task._id },
+    {
+      $pull: { subtasks: { id } } as any,
+      $set: { updatedAt: new Date() },
+    }
+  );
 
   revalidatePath("/");
   return { success: true };
@@ -178,11 +261,9 @@ export async function deleteSubtask(id: string) {
 
 export async function getAiInsights() {
   const userId = await getUserId();
+  const { db } = await connectToDatabase();
 
-  const tasks = await prisma.task.findMany({
-    where: { userId },
-    include: { subtasks: true },
-  });
+  const tasks = await db.collection("tasks").find({ userId }).toArray();
 
   if (tasks.length === 0) {
     return {
@@ -196,8 +277,8 @@ export async function getAiInsights() {
     status: t.status,
     priority: t.priority,
     category: t.category,
-    subtasksCount: t.subtasks.length,
-    completedSubtasksCount: t.subtasks.filter((s: any) => s.completed).length,
+    subtasksCount: (t.subtasks || []).length,
+    completedSubtasksCount: (t.subtasks || []).filter((s: any) => s.completed).length,
   }));
 
   const prompt = `Here is a list of my current tasks in my task manager:

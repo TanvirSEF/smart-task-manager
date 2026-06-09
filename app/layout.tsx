@@ -10,7 +10,7 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: "Smart Task Manager",
-  description: "Built with Next.js, Clerk, Prisma, and OpenAI",
+  description: "Built with Next.js, Clerk, MongoDB, and OpenAI",
 };
 
 export default function RootLayout({
