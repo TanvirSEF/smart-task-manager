@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Task } from "@/types/task";
 
 interface Props {
@@ -9,17 +9,9 @@ interface Props {
 }
 
 export default function TaskForm({ onSubmit, initialData }: Props) {
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState("");
-
-  useEffect(() => {
-    if (initialData) {
-      setTitle(initialData.title);
-      setDescription(initialData.description);
-      setDueDate(initialData.dueDate);
-    }
-  }, [initialData]);
+  const [title, setTitle] = useState(initialData?.title || "");
+  const [description, setDescription] = useState(initialData?.description || "");
+  const [dueDate, setDueDate] = useState(initialData?.dueDate || "");
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

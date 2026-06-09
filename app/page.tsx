@@ -34,7 +34,7 @@ export default function Home() {
         <h1 className="text-3xl font-bold text-center text-gray-800">
           📝 Smart Task Manager
         </h1>
-        <TaskForm onSubmit={handleSave} initialData={editingTask || undefined} />
+        <TaskForm key={editingTask?.id || "new"} onSubmit={handleSave} initialData={editingTask || undefined} />
         <div className="space-y-4">
           {tasks.map((task) => (
             <TaskItem key={task.id} task={task} onEdit={handleEdit} onDelete={handleDelete} />
